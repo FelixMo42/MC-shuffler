@@ -20,39 +20,48 @@ def addQuestion(image):
     global questionCounter
     global position
 
+    # increase the current count of question by 1
     questionCounter += 1
 
+    # load the image
     pix = fitz.Pixmap(image)
 
+    # is their enoght space left on this page for the question?
     if (position + pix.height * Scale > PageHeight - TopPadding):
+        # reset the position to the top of the page
         position = TopPadding
 
+        # we need a new page
         pdf.newPage(-1, PageWidth, PageHeight)
 
-
-    X = SidePadding + 25
-    Y = position
+    # coordinates of question 
+    X0 = SidePadding
+    Y0 = position
+    X1 = PageWidth - SidePadding
+    Y1 = Y0 + pix.height * Scale
 
     # get last page
     page = pdf[-1]
 
     # add the problem number 
-    page.insertText( fitz.Point(SidePadding + 10, Y + FontSize) , str(questionCounter), fontsize=FontSize )
+    page.insertText( fitz.Point(X0 + 10, Y0 + FontSize) , str(questionCounter), fontsize=FontSize )
 
-    # insert the image
-    page.insertImage( fitz.Rect(X, Y, X + pix.width * Scale, Y + pix.height * Scale).round() , pixmap=pix)
+    # insert the picture of the multiple choice question
+    page.insertImage( fitz.Rect(X0 + 50, Y0, X0 + 50 + pix.width * Scale, Y1).round() , pixmap=pix)
 
-    #
-    page.drawRect( fitz.Rect(SidePadding, Y, PageWidth - SidePadding, Y + pix.height * Scale) )
+    # draw the rectang around the question
+    page.drawRect( fitz.Rect(X0, Y0, X1, Y1) )
 
     # shift down the position by position of the scaled height of the picture
     position += pix.height * Scale
 
+# create a new page
 pdf = fitz.open()
+
+# add a page to the begining
 pdf.newPage(-1, PageWidth, PageHeight)
 
-addQuestion("ipsum1.png")
-addQuestion("ipsum1.png")
+# add a bunch of questions
 addQuestion("ipsum1.png")
 addQuestion("ipsum1.png")
 addQuestion("ipsum1.png")
@@ -62,4 +71,5 @@ addQuestion("ipsum1.png")
 addQuestion("ipsum1.png")
 addQuestion("ipsum1.png")
 
+# save the pdf
 pdf.save("out.pdf")
