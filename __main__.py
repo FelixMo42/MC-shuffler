@@ -11,12 +11,17 @@ Scale = 0.40
 
 ## END SETTINGS ##
 
+import xlrd
 import fitz
+import random
 
+# how many question we jave
 questionCounter = 0
+
+# were on the last page a new question should be added
 position = TopPadding
 
-def addQuestion(image):
+def addQuestion(src):
     global questionCounter
     global position
 
@@ -24,7 +29,7 @@ def addQuestion(image):
     questionCounter += 1
 
     # load the image
-    pix = fitz.Pixmap(image)
+    pix = fitz.Pixmap(src)
 
     # is their enoght space left on this page for the question?
     if (position + pix.height * Scale > PageHeight - TopPadding):
@@ -55,6 +60,27 @@ def addQuestion(image):
     # shift down the position by position of the scaled height of the picture
     position += pix.height * Scale
 
+def loadRandomizedAnswers(src, sheet='Sheet1'):
+    # load in the awser from an exel sheet
+    doc = xlrd.open_workbook(src)
+
+    # get the sheet with the awsers on it
+    sheet = doc.sheet_by_name('Sheet1')
+
+    # make a list of all the anwers in the sheet
+    answers = []
+    for rownum in range(sheet.nrows):
+        answer = sheet.row_values(rownum)
+        answers.append( [ int(answer[0]), answer[1] ] )
+
+    # shuffle the list of answers
+    random.shuffle(answers)
+
+    # and finally awnser
+    return answers
+
+answers = loadRandomizedAnswers("answers.xlsx")
+
 # create a new page
 pdf = fitz.open()
 
@@ -62,14 +88,14 @@ pdf = fitz.open()
 pdf.newPage(-1, PageWidth, PageHeight)
 
 # add a bunch of questions
-addQuestion("ipsum1.png")
-addQuestion("ipsum1.png")
-addQuestion("ipsum1.png")
-addQuestion("ipsum1.png")
-addQuestion("ipsum1.png")
-addQuestion("ipsum1.png")
-addQuestion("ipsum1.png")
-addQuestion("ipsum1.png")
+# addQuestion("ipsum1.png")
+# addQuestion("ipsum1.png")
+# addQuestion("ipsum1.png")
+# addQuestion("ipsum1.png")
+# addQuestion("ipsum1.png")
+# addQuestion("ipsum1.png")
+# addQuestion("ipsum1.png")
+# addQuestion("ipsum1.png")
 
 # save the pdf
 pdf.save("out.pdf")
