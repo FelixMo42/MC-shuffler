@@ -8,13 +8,15 @@ PageHeight = 1008
 
 FontSize = 10
 
+Scale = 0.7
+
 ## END SETTINGS ##
 
 import xlrd
 import fitz
 import glob
 from random import shuffle
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageFilter
 
 # how many question we jave
 questionCounter = 0
@@ -23,12 +25,9 @@ questionCounter = 0
 position = TopPadding
 
 def trimWhiteSpaceFromImages():
-    # get all the pngs
-    filePaths = glob.glob("data/*.PNG")
-
-    for filePath in filePaths:
+    for i in range(1, 5):
         # load the image
-        image = Image.open(filePath)
+        image = Image.open(f"backup/{i}.PNG")
         image.load()
 
         # remove alpha channel
@@ -38,9 +37,17 @@ def trimWhiteSpaceFromImages():
         invert_im = ImageOps.invert(invert_im)
         imageBox = invert_im.getbbox()
 
-        # crop and save the image
-        cropped = image.crop(imageBox)
-        cropped.save(filePath)
+        # crop the image
+        image = image.crop(imageBox)
+
+        # resize it
+        image = image.resize( (int(image.width * Scale), int(image.height * Scale)), Image.ANTIALIAS )
+
+        # sharpen the edges
+        # image = image.filter(ImageFilter.EDGE_ENHANCE)
+
+        # save it
+        image.save(f"data/{i}.PNG")
 
 def addQuestion(src):
     global questionCounter
@@ -52,8 +59,11 @@ def addQuestion(src):
     # load the image
     pix = fitz.Pixmap(src)
 
+    width = pix.width
+    height = pix.height
+
     # is their enough space left on this page for the question?
-    if (position + pix.height > PageHeight - TopPadding):
+    if (position + height > PageHeight - TopPadding):
         # reset the position to the top of the page
         position = TopPadding
 
@@ -64,7 +74,7 @@ def addQuestion(src):
     X0 = SidePadding
     Y0 = position
     X1 = PageWidth - SidePadding
-    Y1 = position + pix.height
+    Y1 = position + 20 + height
 
     # get last page
     page = pdf[-1]
@@ -73,7 +83,7 @@ def addQuestion(src):
     page.insertText(fitz.Point(X0 + 10, Y0 + FontSize + 10), str(questionCounter), fontsize=FontSize)
 
     # insert the picture of the multiple choice question
-    page.insertImage(fitz.Rect(X0 + 25, Y0, X0 + 25 + pix.width, Y1), pixmap=pix)
+    page.insertImage(fitz.Rect(X0 + 50, Y0 + 10, X0 + 50 + width, Y1 - 10), pixmap=pix)
 
     # draw the rectang around the question
     page.drawRect( fitz.Rect(X0, Y0, X1, Y1) )
@@ -111,7 +121,8 @@ pdf.newPage(-1, PageWidth, PageHeight)
 
 # add a bunch of questions
 for answer in answers:
-    addQuestion(f"data/{str(int(answer[0]) % 4 + 1)}.PNG")
+    i = str(int(answer[0]) % 4 + 1)
+    addQuestion(f"data/{i}.PNG")
 
 # save the pdf
 pdf.save("out.pdf")
