@@ -15,19 +15,104 @@ Scale = 0.7
 import xlrd
 import fitz
 import glob
+import csv
+import shutil
+import os
 from random import shuffle
 from PIL import Image, ImageOps, ImageFilter
 
-# how many question we jave
-questionCounter = 0
+def exportTest(out="."):
+    if not os.path.exists(out):
+        os.makedirs(out)
 
-# were on the last page a new question should be added
-position = TopPadding
+    def addQuestion(src):
+        nonlocal questionCounter
+        nonlocal position
 
-def trimWhiteSpaceFromImages():
-    for i in range(1, 5):
+        # increase the current count of question by 1
+        questionCounter += 1
+
         # load the image
-        image = Image.open(f"backup/{i}.PNG")
+        pix = fitz.Pixmap(src)
+
+        width = pix.width
+        height = pix.height
+
+        # is their enough space left on this page for the question?
+        if (position + height > PageHeight - TopPadding):
+            # reset the position to the top of the page
+            position = TopPadding
+
+            # we need a new page
+            pdf.newPage(-1, PageWidth, PageHeight)
+
+        # coordinates of question 
+        X0 = SidePadding
+        Y0 = position
+        X1 = PageWidth - SidePadding
+        Y1 = position + 20 + height
+
+        # get last page
+        page = pdf[-1]
+
+        # add the problem number 
+        page.insertText(fitz.Point(X0 + 10, Y0 + FontSize + 10), str(questionCounter), fontsize=FontSize)
+
+        # insert the picture of the multiple choice question
+        page.insertImage(fitz.Rect(X0 + 50, Y0 + 10, X0 + 50 + width, Y1 - 10), pixmap=pix)
+
+        # draw the rectang around the question
+        page.drawRect( fitz.Rect(X0, Y0, X1, Y1) )
+
+        # shift down the position to the end of this question
+        position = Y1
+
+    # how many question we have
+    questionCounter = 0
+
+    # were on the last page a new question should be added
+    position = TopPadding
+
+    # load in the questions
+    questions = loadRandomizedQuestions("data/answers.xlsx")
+
+    # create a new pdf
+    pdf = fitz.open()
+
+    # add a page to the begining
+    pdf.newPage(-1, PageWidth, PageHeight)
+
+    # add a bunch of questions
+    for question in questions:
+        addQuestion(f"tmp/{str(int(question[0]))}.PNG")
+
+    # save the pdf
+    pdf.save(f"{out}/test.pdf")
+
+    # export the a csv with the new awser key
+    with open(f'{out}/key.csv', 'w', newline='') as csvfile:
+        awnsers = csv.writer(csvfile)
+        i = 1
+        for question in questions:
+            awnsers.writerow([i, question[1]])
+            i += 1
+
+def getAllInFolder(src, ext):
+    files = os.listdir(src)
+
+    return filter(lambda path: path.endswith(ext) or path.endswith(ext.upper()), files)
+
+def trimWhiteSpaceFromImages(src, out):
+    # remove the output folder if it exist
+    if os.path.isdir(out):
+        os.rmdir(out)
+    
+    # then create a new fresh empty one
+    os.mkdir(out)
+
+    for path in getAllInFolder("data", ".png"):
+        # load the image
+        image = Image.open(f"{src}/{path}")
         image.load()
 
         # remove alpha channel
@@ -43,55 +128,10 @@ def trimWhiteSpaceFromImages():
         # resize it
         image = image.resize( (int(image.width * Scale), int(image.height * Scale)), Image.ANTIALIAS )
 
-        # sharpen the edges
-        # image = image.filter(ImageFilter.EDGE_ENHANCE)
-
         # save it
-        image.save(f"data/{i}.PNG")
+        image.save(f"{out}/{path}")
 
-def addQuestion(src):
-    global questionCounter
-    global position
-
-    # increase the current count of question by 1
-    questionCounter += 1
-
-    # load the image
-    pix = fitz.Pixmap(src)
-
-    width = pix.width
-    height = pix.height
-
-    # is their enough space left on this page for the question?
-    if (position + height > PageHeight - TopPadding):
-        # reset the position to the top of the page
-        position = TopPadding
-
-        # we need a new page
-        pdf.newPage(-1, PageWidth, PageHeight)
-
-    # coordinates of question 
-    X0 = SidePadding
-    Y0 = position
-    X1 = PageWidth - SidePadding
-    Y1 = position + 20 + height
-
-    # get last page
-    page = pdf[-1]
-
-    # add the problem number 
-    page.insertText(fitz.Point(X0 + 10, Y0 + FontSize + 10), str(questionCounter), fontsize=FontSize)
-
-    # insert the picture of the multiple choice question
-    page.insertImage(fitz.Rect(X0 + 50, Y0 + 10, X0 + 50 + width, Y1 - 10), pixmap=pix)
-
-    # draw the rectang around the question
-    page.drawRect( fitz.Rect(X0, Y0, X1, Y1) )
-
-    # shift down the position to the end of this question
-    position = Y1
-
-def loadRandomizedAnswers(src, sheet="Sheet1"):
+def loadRandomizedQuestions(src, sheet="Sheet1"):
     # load in the awser from an exel sheet
     doc = xlrd.open_workbook(src)
 
@@ -99,30 +139,16 @@ def loadRandomizedAnswers(src, sheet="Sheet1"):
     sheet = doc.sheet_by_name(sheet)
 
     # make a list of all the anwers in the sheet
-    answers = []
+    questions = []
     for rownum in range(sheet.nrows):
-        answers.append( sheet.row_values(rownum) )
+        questions.append( sheet.row_values(rownum) )
 
-    # shuffle the list of answers
-    shuffle(answers)
+    # shuffle the list of questions
+    shuffle(questions)
 
     # and finally awnser
-    return answers
+    return questions
 
-trimWhiteSpaceFromImages()
-
-answers = loadRandomizedAnswers("data/answers.xlsx")
-
-# create a new page
-pdf = fitz.open()
-
-# add a page to the begining
-pdf.newPage(-1, PageWidth, PageHeight)
-
-# add a bunch of questions
-for answer in answers:
-    i = str(int(answer[0]) % 4 + 1)
-    addQuestion(f"data/{i}.PNG")
-
-# save the pdf
-pdf.save("out.pdf")
+# trimWhiteSpaceFromImages("data", "tmp")
+for i in range(0, 15):
+    exportTest(f"out/{i}")
