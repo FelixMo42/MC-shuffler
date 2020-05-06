@@ -10,6 +10,9 @@ FontSize = 8
 
 Scale = 0.64
 
+TestIdStart = 1
+NumTest = 15
+
 ## END SETTINGS ##
 
 import xlrd
@@ -22,7 +25,26 @@ import zipfile
 import random
 from PIL import Image, ImageOps
 
-def exportTest(out="."):
+def addColumnToCSV(src, col):
+    data = []
+
+    with open(src, "r") as csvfile:
+        reader = csv.reader(csvfile)
+
+        for row in reader:
+            # append the corresponding item from the collumn
+            row.append(col[reader.line_num - 1])
+
+            # append this row to the data
+            data.append(row)
+
+    with open(src, 'w+') as csvfile:
+        writer = csv.writer(csvfile)
+
+        for row in data:
+            writer.writerow(row)
+
+def exportTest(out=".", name="test"):
     def addQuestion(src):
         nonlocal questionCounter
         nonlocal position
@@ -33,6 +55,7 @@ def exportTest(out="."):
         # load the image
         pix = fitz.Pixmap(src)
 
+        # scale down the width and height
         width = pix.width * Scale
         height = pix.height * Scale
 
@@ -58,7 +81,7 @@ def exportTest(out="."):
 
         # insert the picture of the multiple choice question
         page.insertImage(fitz.Rect(
-            X0 + 50,         Y0 + 10,
+            X0 + 50        , Y0 + 10,
             X0 + 50 + width, Y0 + 10 + height
         ), pixmap=pix)
 
@@ -92,15 +115,30 @@ def exportTest(out="."):
         addQuestion(f"tmp/{str(int(question[0]))}.PNG")
 
     # save the pdf
-    pdf.save(f"{out}/test.pdf")
+    pdf.save(f"{out}/{name}.pdf")
 
-    # export the a csv with the new awser key
-    with open(f'{out}/key.csv', 'w', newline='') as csvfile:
-        awnsers = csv.writer(csvfile)
-        i = 1
-        for question in questions:
-            awnsers.writerow([i, question[1]])
-            i += 1
+    # add the questions to the awnser key
+    addColumnToCSV(f'{out}/key.csv', [str(name), *map(lambda question : question[1], questions)])
+
+def openSheet(src, sheet):
+    # load in the awser from an exel sheet
+    doc = xlrd.open_workbook(src)
+
+    # get the sheet with the awsers on it
+    return doc.sheet_by_name(sheet)
+
+def createAwnserKey(out, src, sheet="Sheet1"):
+    awnser = openSheet(src, sheet)
+
+    with open(out, 'w+') as csvfile:
+        writer = csv.writer(csvfile)
+
+        # add an empty header row
+        writer.writerow([ " " ])
+
+        # right in all the numbers
+        for i in range(awnser.nrows):
+            writer.writerow([ i + 1 ])
 
 def getAllInFolder(src, ext):
     # get the list of files
@@ -152,17 +190,18 @@ def loadRandomizedQuestions(src, sheet="Sheet1"):
     return questions
 
 def zipdir(path, ziph):
-    # ziph is zipfile handle
     for root, dirs, files in os.walk(path):
         for file in files:
             ziph.write(os.path.join(root, file))
 
-# trimWhiteSpaceFromImages("data", "tmp")
-for i in range(0, 15):
-    exportTest(f"out/{20 + i}")
+trimWhiteSpaceFromImages("data", "tmp")
+createAwnserKey("out/key.csv", "data/answers.xlsx")
+
+
+for i in range(TestIdStart, TestIdStart + NumTest):
+    exportTest("out", i + 1)
 
 # zip the output directory
 zipf = zipfile.ZipFile('out.zip', 'w', zipfile.ZIP_DEFLATED)
 zipdir('out/', zipf)
 zipf.close()
-
